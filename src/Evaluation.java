@@ -9,14 +9,16 @@ import java.util.Map;
 
 /*
 am i reading in each trecrun and that's when i compute all those values?
+- yes
 what are qrels for?
-read in a trecrun and see if the doc at whatever rank/line is relevant?
-what am i running MAP on? 
+- gives all relevant docs
+first k RELEVANT, not first k RETRIEVED
  */
 public class Evaluation {
     Map<Integer, String> relevanceJudgements;
     List<String> retrieved;
     List<String> relevant;
+    int NUM_QUERIES = 400;
 
     public Evaluation() {
         relevanceJudgements = new HashMap<>();
@@ -43,38 +45,62 @@ public class Evaluation {
         }
     }
 
-    private void evaluateBM25(String filename) throws FileNotFoundException {
+    private void evaluate(String filename, int k) throws FileNotFoundException {
         try {
             BufferedReader br = new BufferedReader(new FileReader(filename));
             String s;
+            List<String> queries = new ArrayList<>();
             List<Double> recall = new ArrayList<>();
             List<Double> precision = new ArrayList<>();
             List<Double> precisionsToAvg = new ArrayList<>();
-            boolean changedRecall = false;
+            Map<String, Double> apMap = new HashMap<>();
+            Double allQueryPrecisions = 0.0;
             int numRetrieved = 0;
             Double numRelevant = 0.0;
             while ((s = br.readLine()) != null) {
-                numRetrieved++;
                 String[] line = s.split("\\s+");
+                String queryID = line[0];
                 String docID = line[2];
-                Double recallVal = numRelevant/relevant.size();
-                Double precisionVal = numRelevant/numRetrieved;
+                numRetrieved++;
+                // If new query
+                if (!queries.contains(queryID)) {
+                    queries.add(queryID);
+                    // If not the first query
+                    if (numRetrieved > 0) {
+                        Double ap = getAvgPrecision(precisionsToAvg);
+                        apMap.put(queryID, ap);
+                        allQueryPrecisions += ap;
+                        precisionsToAvg.clear();
+                        numRetrieved = 0;
+                        numRelevant = 0.0;
+                    }
+                }
                 if (relevant.contains(docID)) {
                     numRelevant++;
-                    recall.add(numRelevant/relevant.size());
-                    precision.add(numRelevant/numRetrieved);
-                    precisionsToAvg.add(numRelevant/numRetrieved);
+                    recall.add(numRelevant / relevant.size());
+                    precision.add(numRelevant / numRetrieved);
+                    precisionsToAvg.add(numRelevant / numRetrieved);
+                } else {
+                    recall.add(numRelevant / relevant.size());
+                    precision.add(numRelevant / numRetrieved);
                 }
-                else {
-                    recall.add(recallVal);
-                    precision.add(precisionVal);
-                }
+            }
+            for (int rank = 1; rank <= k; rank++) {
 
             }
+
+            Double map = allQueryPrecisions / NUM_QUERIES;
         }
         catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private Double getAvgPrecision(List<Double> precisionsToAvg) {
+        Double sum = 0.0;
+        for (Double p : precisionsToAvg)
+            sum += p;
+        return sum;
     }
 
     public static void main(String[] args) throws FileNotFoundException {
